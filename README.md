@@ -106,7 +106,7 @@ bash scripts/deploy.sh
 |---|---:|---|
 | `YOUTUBE_API_KEY` | Yes | YouTube Data API v3キー |
 | `GEMINI_API_KEY` | Yes | Gemini APIキー |
-| `GEMINI_MODEL` | No | 既定値 `gemini-2.5-flash` |
+| `GEMINI_MODEL` | No | 既定値 `gemini-3.6-flash` |
 | `MAX_VIDEOS` | No | 1回に扱う最大動画数（既定6） |
 | `MAX_COMMENTS_PER_VIDEO` | No | 動画ごとの最大コメント数（既定100） |
 | `MAX_AGENT_ROUNDS` | No | 調査ラウンド上限（既定2、最大3） |
