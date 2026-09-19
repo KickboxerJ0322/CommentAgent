@@ -46,6 +46,14 @@ npm test
 
 ## Google Cloudへデプロイ
 
+このリポジトリの既定プロジェクトは `jumpeicloud`、リージョンは東京の `asia-northeast1` です。Google Cloud ConsoleでCloud Shellを開き、リポジトリを取得して作業します。
+
+```bash
+git clone https://github.com/KickboxerJ0322/CommentAgent.git
+cd CommentAgent
+gcloud config set project jumpeicloud
+```
+
 ### 1. APIを有効化
 
 ```bash
@@ -56,8 +64,28 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregi
 
 ```bash
 gcloud artifacts repositories create comment-agent --repository-format=docker --location=asia-northeast1
-printf '%s' 'YOUR_YOUTUBE_KEY' | gcloud secrets create YOUTUBE_API_KEY --data-file=-
-printf '%s' 'YOUR_GEMINI_KEY' | gcloud secrets create GEMINI_API_KEY --data-file=-
+```
+
+#### Secretの登録
+
+APIキーをコマンド履歴やGitHubへ残さないよう、Cloud Shell上で値を非表示入力して登録します。
+
+```bash
+read -rsp 'YouTube API key: ' YT_KEY && echo
+printf '%s' "$YT_KEY" | gcloud secrets create YOUTUBE_API_KEY --data-file=-
+unset YT_KEY
+
+read -rsp 'Gemini API key: ' GM_KEY && echo
+printf '%s' "$GM_KEY" | gcloud secrets create GEMINI_API_KEY --data-file=-
+unset GM_KEY
+```
+
+すでにSecretが存在する場合は、`versions add` で新しいバージョンを登録します。
+
+```bash
+read -rsp 'YouTube API key: ' YT_KEY && echo
+printf '%s' "$YT_KEY" | gcloud secrets versions add YOUTUBE_API_KEY --data-file=-
+unset YT_KEY
 ```
 
 Cloud BuildサービスアカウントとCloud Run実行サービスアカウントに、必要最小限のSecret Manager Secret Accessor権限を付与してください。
@@ -65,8 +93,10 @@ Cloud BuildサービスアカウントとCloud Run実行サービスアカウン
 ### 3. ビルド・デプロイ
 
 ```bash
-gcloud builds submit --config cloudbuild.yaml --region=asia-northeast1
+bash scripts/deploy.sh
 ```
+
+スクリプトはAPI有効化、Artifact Registry作成、Secret存在確認、Cloud Build、Cloud Run URL表示を順番に行います。既存のArtifact RegistryやSecretを削除・上書きしません。
 
 継続デプロイを使う場合は、Google CloudコンソールのCloud Build「リポジトリ」から本リポジトリを接続し、`main`へのpushをトリガー、構成ファイルを `cloudbuild.yaml` に設定します。
 
