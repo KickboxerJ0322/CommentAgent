@@ -18,6 +18,7 @@ gcloud services enable \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
   secretmanager.googleapis.com \
+  firestore.googleapis.com \
   youtube.googleapis.com
 
 if ! gcloud artifacts repositories describe "$REPOSITORY" \
@@ -53,4 +54,3 @@ gcloud run services describe "$SERVICE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
   --format='value(status.url)'
-

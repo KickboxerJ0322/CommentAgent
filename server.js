@@ -1,5 +1,7 @@
 import express from "express";
 import { createResearchAgent } from "./src/agent.js";
+import { YouTubeClient } from "./src/youtube.js";
+import { getResearch, listResearch, saveResearch } from "./src/history.js";
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -10,23 +12,31 @@ app.use(express.static("public", { extensions: ["html"] }));
 
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
+function researchOptions(body = {}, onEvent) {
+  const periodDays = [0, 7, 30, 90, 365].includes(Number(body.periodDays)) ? Number(body.periodDays) : 30;
+  const publishedAfter = periodDays ? new Date(Date.now() - periodDays * 86400000).toISOString() : undefined;
+  return {
+    videoUrl: String(body.videoUrl || "").trim(),
+    publishedAfter,
+    maxVideos: Math.min(Math.max(Number(body.maxVideos || process.env.MAX_VIDEOS || 6), 1), 10),
+    maxCommentsPerVideo: Math.min(Math.max(Number(body.maxCommentsPerVideo || process.env.MAX_COMMENTS_PER_VIDEO || 60), 10), 200),
+    maxRounds: body.allowAdditionalResearch === false ? 1 : Math.min(Math.max(Number(process.env.MAX_AGENT_ROUNDS || 2), 1), 3),
+    onEvent
+  };
+}
+
 app.post("/api/research", async (req, res) => {
   const topic = String(req.body?.topic || "").trim();
   if (topic.length < 2 || topic.length > 200) {
     return res.status(400).json({ error: "調査テーマは2〜200文字で入力してください。" });
   }
 
-  const options = {
-    maxVideos: Math.min(Math.max(Number(req.body?.maxVideos || process.env.MAX_VIDEOS || 6), 1), 10),
-    maxCommentsPerVideo: Math.min(Math.max(Number(process.env.MAX_COMMENTS_PER_VIDEO || 100), 10), 200),
-    maxRounds: req.body?.allowAdditionalResearch === false
-      ? 1
-      : Math.min(Math.max(Number(process.env.MAX_AGENT_ROUNDS || 2), 1), 3)
-  };
+  const options = researchOptions(req.body);
 
   try {
     const result = await createResearchAgent().research(topic, options);
-    res.json(result);
+    const id = await saveResearch(result);
+    res.json({ id, ...result });
   } catch (error) {
     console.error(error);
     res.status(error.status || 500).json({
@@ -46,18 +56,48 @@ app.post("/api/research/stream", async (req, res) => {
   res.flushHeaders();
   const send = payload => res.write(`${JSON.stringify(payload)}\n`);
   try {
-    const result = await createResearchAgent().research(topic, {
-      maxVideos: Math.min(Math.max(Number(req.body?.maxVideos || process.env.MAX_VIDEOS || 6), 1), 10),
-      maxCommentsPerVideo: Math.min(Math.max(Number(process.env.MAX_COMMENTS_PER_VIDEO || 100), 10), 200),
-      maxRounds: req.body?.allowAdditionalResearch === false ? 1 : Math.min(Math.max(Number(process.env.MAX_AGENT_ROUNDS || 2), 1), 3),
-      onEvent: item => send({ type: "activity", item })
-    });
-    send({ type: "result", data: result });
+    const result = await createResearchAgent().research(topic, researchOptions(req.body, item => send({ type: "activity", item })));
+    const id = await saveResearch(result);
+    send({ type: "result", data: { id, ...result } });
   } catch (error) {
     console.error(error);
     send({ type: "error", error: error.publicMessage || "調査中にエラーが発生しました。時間をおいて再試行してください。" });
   } finally {
     res.end();
+  }
+});
+
+app.get("/api/history", async (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 100);
+  res.json({ items: await listResearch(limit) });
+});
+
+app.get("/api/history/:id", async (req, res) => {
+  const result = await getResearch(req.params.id);
+  if (!result) return res.status(404).json({ error: "調査結果が見つかりません。" });
+  res.json(result);
+});
+
+let trendingCache;
+app.get("/api/trending", async (_req, res) => {
+  if (trendingCache?.expiresAt > Date.now()) return res.json(trendingCache.data);
+  try {
+    const youtube = new YouTubeClient();
+    const videos = await youtube.getPopularVideos(12, "JP");
+    const commentGroups = await Promise.all(videos.map(async video => {
+      const comments = await youtube.getComments(video.id, 30);
+      return comments.map(comment => ({ ...comment, videoId: video.id, videoTitle: video.title, videoUrl: video.url }));
+    }));
+    const topComments = commentGroups.flat()
+      .filter(comment => comment.text && comment.likes >= 0)
+      .sort((a, b) => b.likes - a.likes || b.publishedAt.localeCompare(a.publishedAt))
+      .slice(0, 10);
+    const data = { topComments, sampledVideos: videos.length, generatedAt: new Date().toISOString() };
+    trendingCache = { data, expiresAt: Date.now() + 10 * 60 * 1000 };
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(error.status || 500).json({ error: error.publicMessage || "話題のコメントを取得できませんでした。" });
   }
 });
 

@@ -2,6 +2,31 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createResearchAgent } from "../src/agent.js";
 import { buildFallbackAnalysis } from "../src/gemini.js";
+import { extractVideoId } from "../src/youtube.js";
+
+test("extracts video ids from common YouTube URL formats", () => {
+  assert.equal(extractVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), "dQw4w9WgXcQ");
+  assert.equal(extractVideoId("https://youtu.be/dQw4w9WgXcQ?t=10"), "dQw4w9WgXcQ");
+  assert.equal(extractVideoId("https://www.youtube.com/shorts/dQw4w9WgXcQ"), "dQw4w9WgXcQ");
+  assert.equal(extractVideoId("not-a-valid-video-id"), null);
+});
+
+test("agent researches a specified video directly", async () => {
+  let searches = 0;
+  const youtube = {
+    async searchVideos() { searches++; return []; },
+    async getVideo(id) { return { id, title:"Direct video", channel:"test", url:"https://youtube.com", thumbnail:"" }; },
+    async getComments() { return [{ text:"direct comment", likes:3, publishedAt:new Date().toISOString() }]; }
+  };
+  const analyst = {
+    async plan() { return { queries:["unused"], selectionPolicy:"direct" }; },
+    async analyze() { return { summary:"ok", sentiment:{positive:100,neutral:0,negative:0}, topics:[], needsMoreResearch:false }; }
+  };
+  const result = await createResearchAgent({ youtube, analyst }).research("test", { videoUrl:"https://youtu.be/dQw4w9WgXcQ" });
+  assert.equal(searches, 0);
+  assert.equal(result.stats.videos, 1);
+  assert.equal(result.conditions.videoUrl, "https://youtu.be/dQw4w9WgXcQ");
+});
 
 test("agent performs an additional research round when analysis finds a gap", async () => {
   let analyses = 0;

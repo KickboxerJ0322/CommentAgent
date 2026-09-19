@@ -57,8 +57,18 @@ gcloud config set project jumpeicloud
 ### 1. APIを有効化
 
 ```bash
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com youtube.googleapis.com
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com firestore.googleapis.com youtube.googleapis.com
 ```
+
+### Firestore（調査履歴）の初回準備
+
+過去の調査を最大100件、Cloud Runの再起動後も保持するためFirestoreを使用します。初回だけ次を実行してください。
+
+```bash
+bash scripts/setup-firestore.sh
+```
+
+このスクリプトは既定データベースがない場合だけ東京リージョンに作成し、Cloud Runの既定実行サービスアカウントへ `roles/datastore.user` を付与します。既存データベースは変更しません。
 
 ### 2. Artifact RegistryとSecret Managerを準備
 
@@ -117,6 +127,7 @@ bash scripts/deploy.sh
 - 調査ラウンド・動画数・コメント数にはサーバー側上限があります。
 - YouTube検索はSafeSearchを有効化しています。
 - AIの総評は「取得したコメント内の傾向」であり、世論全体を表すものではありません。
+- 「話題のテーマ」はYouTube全体の完全なランキングではなく、日本の「人気の動画」最大12本から取得した公開コメントをいいね数順に並べた参考ランキングです。結果はAPI使用量を抑えるため10分間キャッシュします。
 
 ## ハッカソンでの新規開発範囲
 

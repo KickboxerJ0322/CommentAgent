@@ -1,11 +1,11 @@
-import { YouTubeClient } from "./youtube.js";
+import { YouTubeClient, extractVideoId } from "./youtube.js";
 import { GeminiAnalyst } from "./gemini.js";
 
 const event = (type, title, detail) => ({ type, title, detail, at: new Date().toISOString() });
 
 export function createResearchAgent({ youtube = new YouTubeClient(), analyst = new GeminiAnalyst() } = {}) {
   return {
-    async research(topic, { maxVideos = 6, maxCommentsPerVideo = 100, maxRounds = 2, onEvent } = {}) {
+    async research(topic, { maxVideos = 6, maxCommentsPerVideo = 100, maxRounds = 2, videoUrl = "", publishedAfter, onEvent } = {}) {
       const activity = [];
       const record = (type, title, detail) => {
         const item = event(type, title, detail);
@@ -13,7 +13,7 @@ export function createResearchAgent({ youtube = new YouTubeClient(), analyst = n
         onEvent?.(item);
       };
       record("goal", "調査を開始", topic);
-      record("thinking", "調査計画を検討中", "検索語と調査範囲を組み立てています");
+      record("thinking", "調査計画を検討中", videoUrl ? "指定された動画と調査範囲を確認しています" : "検索語と調査範囲を組み立てています");
       const plan = await analyst.plan(topic);
       record("plan", "調査計画を作成", `${plan.queries.length}個の検索語を生成`);
 
@@ -22,10 +22,30 @@ export function createResearchAgent({ youtube = new YouTubeClient(), analyst = n
       let queries = plan.queries?.filter(Boolean).slice(0, 3) || [topic];
       let analysis;
 
+      if (videoUrl) {
+        const videoId = extractVideoId(videoUrl);
+        if (!videoId) {
+          const error = new Error("有効なYouTube動画URLを入力してください。");
+          error.status = 400;
+          error.publicMessage = error.message;
+          throw error;
+        }
+        const video = await youtube.getVideo(videoId);
+        if (!video) {
+          const error = new Error("指定されたYouTube動画が見つかりません。");
+          error.status = 404;
+          error.publicMessage = error.message;
+          throw error;
+        }
+        videosById.set(video.id, video);
+        queries = [];
+        maxRounds = 1;
+      }
+
       for (let round = 1; round <= maxRounds; round++) {
-        record("search", `検索 Round ${round}`, queries.join(" / "));
+        record("search", videoUrl ? "指定動画を確認" : `検索 Round ${round}`, videoUrl || queries.join(" / "));
         for (const query of queries) {
-          const found = await youtube.searchVideos(query, maxVideos);
+          const found = await youtube.searchVideos(query, maxVideos, { publishedAfter });
           found.forEach(video => videosById.set(video.id, video));
         }
 
@@ -33,7 +53,7 @@ export function createResearchAgent({ youtube = new YouTubeClient(), analyst = n
         record("select", `${unprocessed.length}本の動画を選択`, plan.selectionPolicy);
         record("collecting", "コメントを収集中", `${unprocessed.length}本の動画を順番に確認しています`);
         for (const video of unprocessed) {
-          const comments = await youtube.getComments(video.id, maxCommentsPerVideo);
+          const comments = await youtube.getComments(video.id, maxCommentsPerVideo, { publishedAfter });
           video.processed = true;
           video.commentCount = comments.length;
           allComments.push(...comments.map(comment => ({ ...comment, videoId: video.id, videoTitle: video.title })));
@@ -65,6 +85,7 @@ export function createResearchAgent({ youtube = new YouTubeClient(), analyst = n
         .map(({ text, likes, publishedAt, videoTitle, videoId }) => ({ text, likes, publishedAt, videoTitle, videoId }));
       return {
         topic, plan, analysis, activity,
+        conditions: { videoUrl: videoUrl || "", publishedAfter: publishedAfter || null, maxVideos, maxCommentsPerVideo },
         stats: { videos: videosById.size, comments: allComments.length, rounds: activity.filter(a => a.type === "search").length },
         videos: [...videosById.values()].map(({ processed, ...video }) => video),
         charts: {
