@@ -2,19 +2,19 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="YouTubeコメントから人々の声を横断調査するAIエージェント"><title>CommentAgent — YouTube Research AI</title>
+  <meta name="description" content="YouTubeコメントから人々の声を横断調査するAIエージェント"><title>コメントリサーチ — YouTube Research AI</title>
+  <link rel="icon" type="image/jpeg" href="/icon.jpg"><link rel="apple-touch-icon" href="/icon.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header><a class="brand" href="/"><span class="logo">C</span><span>CommentAgent</span></a><nav class="top-nav" aria-label="メインメニュー"><button data-dialog="overview-dialog">概要</button><button data-dialog="history-dialog">過去の調査</button><button data-dialog="trending-dialog">話題のテーマ</button></nav></header>
+  <header><a class="brand" href="/"><img class="logo" src="/icon.jpg" alt=""><span>コメントリサーチ</span></a><nav class="top-nav" aria-label="メインメニュー"><button data-dialog="overview-dialog">概要</button><button data-dialog="history-dialog">過去の調査</button><button data-dialog="trending-dialog">話題のテーマ</button></nav></header>
   <main>
     <section class="research-shell">
-      <div class="compact-title"><p class="eyebrow">YOUTUBE COMMENT RESEARCH</p><h1>何を調べますか？</h1></div>
       <form id="research-form">
-        <label for="topic">調査テーマ</label>
         <div class="searchbox"><div class="input-wrap"><input id="topic" maxlength="200" required placeholder="例：生成AIで仕事はどう変わる？"><button id="clear-topic" class="clear-button hidden" type="button" aria-label="入力を消去">×</button></div><button class="submit-button" type="submit">調査を開始 <span>→</span></button></div>
-        <div class="condition-bar" aria-label="調査条件">
+        <button id="conditions-toggle" class="conditions-toggle" type="button" aria-expanded="false"><span>調査条件を設定</span><i>＋</i></button>
+        <div id="condition-bar" class="condition-bar hidden" aria-label="調査条件">
           <label class="url-field"><span>動画URL <small>任意</small></span><input id="video-url" type="url" inputmode="url" placeholder="https://youtube.com/watch?v=..."></label>
           <label><span>期間</span><select id="period-days"><option value="7">7日間</option><option value="30" selected>30日間</option><option value="90">3か月</option><option value="365">1年間</option><option value="0">全期間</option></select></label>
           <label><span>動画数</span><select id="max-videos"><option value="3">3本</option><option value="6" selected>6本</option><option value="10">10本</option></select></label>
@@ -29,7 +29,7 @@
       <article class="report"><div id="loading" class="loading"><div class="orb"></div><h2>エージェントが調査中です</h2><p>検索・収集・分析には少し時間がかかります。</p></div><div id="result" class="hidden"></div></article>
     </section>
   </main>
-  <dialog id="overview-dialog"><div class="dialog-head"><h2>CommentAgentとは</h2><button class="dialog-close" aria-label="閉じる">×</button></div><div class="dialog-body overview"><p class="eyebrow">YOUTUBEの「みんなの声」を、AIが調べる。</p><h2>知りたいことを入力するだけ。<br><span>調査はエージェントに。</span></h2><p>動画を探し、コメントを読み、情報不足なら追加調査。複数動画に散らばる視聴者の反応を一つのレポートにまとめます。</p></div></dialog>
+  <dialog id="overview-dialog"><div class="dialog-head"><h2>コメントリサーチとは</h2><button class="dialog-close" aria-label="閉じる">×</button></div><div class="dialog-body overview"><p class="eyebrow">YOUTUBE COMMENT RESEARCH</p><h2>何を調べますか？</h2><p class="eyebrow overview-copy">YOUTUBEの「みんなの声」を、AIが調べる。</p><h2>知りたいことを入力するだけ。<br><span>調査はエージェントに。</span></h2><p>動画を探し、コメントを読み、情報不足なら追加調査。複数動画に散らばる視聴者の反応を一つのレポートにまとめます。</p></div></dialog>
   <dialog id="history-dialog"><div class="dialog-head"><h2>過去の調査</h2><button class="dialog-close" aria-label="閉じる">×</button></div><div id="history-list" class="dialog-body card-list"><p>読み込み中...</p></div></dialog>
   <dialog id="trending-dialog"><div class="dialog-head"><div><h2>話題のコメント TOP 10</h2><small>日本の人気動画を横断集計</small></div><button class="dialog-close" aria-label="閉じる">×</button></div><div id="trending-list" class="dialog-body ranking-list"><p>読み込み中...</p></div></dialog>
   <footer>Powered by Google Cloud · Gemini · YouTube Data API</footer><script src="/app.js" type="module"></script>

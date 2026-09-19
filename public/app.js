@@ -5,6 +5,12 @@ let activity = [];
 function updateClearButton() { $("#clear-topic").classList.toggle("hidden", !$("#topic").value); }
 $("#topic").addEventListener("input", updateClearButton);
 $("#clear-topic").addEventListener("click", () => { $("#topic").value = ""; updateClearButton(); $("#topic").focus(); });
+$("#conditions-toggle").addEventListener("click", () => {
+  const open = $("#condition-bar").classList.toggle("hidden") === false;
+  $("#conditions-toggle").setAttribute("aria-expanded", String(open));
+  $("#conditions-toggle span").textContent = open ? "調査条件を閉じる" : "調査条件を設定";
+  $("#conditions-toggle i").textContent = open ? "−" : "＋";
+});
 document.querySelectorAll(".examples button").forEach(button => button.addEventListener("click", () => { $("#topic").value = button.textContent; updateClearButton(); $("#topic").focus(); }));
 
 function toggleActivity(show) {
