@@ -12,7 +12,7 @@ const cleanJson = text => {
 };
 
 export class GeminiAnalyst {
-  constructor(apiKey = process.env.GEMINI_API_KEY, model = process.env.GEMINI_MODEL || "gemini-2.5-flash") {
+  constructor(apiKey = process.env.GEMINI_API_KEY, model = process.env.GEMINI_MODEL || "gemini-3.6-flash") {
     this.client = apiKey ? new GoogleGenAI({ apiKey }) : null;
     this.model = model;
   }
@@ -57,4 +57,3 @@ export function buildFallbackAnalysis(topic, comments) {
     gaps: [], needsMoreResearch: false, nextQuery: ""
   };
 }
-
