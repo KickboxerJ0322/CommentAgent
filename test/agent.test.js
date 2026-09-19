@@ -25,3 +25,22 @@ test("fallback sentiment percentages total 100", () => {
   assert.equal(result.sentiment.positive + result.sentiment.neutral + result.sentiment.negative, 100);
 });
 
+test("agent emits progress and builds report chart data", async () => {
+  const progress = [];
+  const publishedAt = new Date().toISOString();
+  const youtube = {
+    async searchVideos() { return [{ id:"v1", title:"Video", channel:"test", url:"https://example.com", thumbnail:"" }]; },
+    async getComments() { return [{ text:"原文コメント", likes:42, publishedAt }]; }
+  };
+  const analyst = {
+    async plan() { return { queries:["query"], selectionPolicy:"relevance" }; },
+    async analyze() { return { summary:"ok", sentiment:{positive:60,neutral:30,negative:10}, topics:[], needsMoreResearch:false }; }
+  };
+  const result = await createResearchAgent({ youtube, analyst }).research("test", { maxRounds:1, onEvent:item => progress.push(item) });
+  assert.ok(progress.some(item => item.type === "thinking"));
+  assert.ok(progress.some(item => item.type === "analyzing"));
+  assert.equal(result.topComments[0].text, "原文コメント");
+  assert.equal(result.topComments[0].likes, 42);
+  assert.equal(result.charts.dailyComments.reduce((sum, item) => sum + item.count, 0), 1);
+  assert.equal(result.charts.videoComments[0].count, 1);
+});

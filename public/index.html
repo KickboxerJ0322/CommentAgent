@@ -19,10 +19,18 @@
       <p class="lead">動画を探し、コメントを読み、情報不足なら追加調査。複数動画に散らばる視聴者の反応を一つのレポートにまとめます。</p>
       <form id="research-form">
         <label for="topic">調査テーマ</label>
-        <div class="searchbox"><input id="topic" maxlength="200" required placeholder="例：生成AIで仕事はどう変わる？"><button>調査を開始 <span>→</span></button></div>
+        <div class="searchbox">
+          <div class="input-wrap"><input id="topic" maxlength="200" required placeholder="例：生成AIで仕事はどう変わる？"><button id="clear-topic" class="clear-button hidden" type="button" aria-label="入力を消去">×</button></div>
+          <button class="submit-button" type="submit">調査を開始 <span>→</span></button>
+        </div>
         <label class="check"><input id="additional" type="checkbox" checked> 情報不足を検出した場合、追加調査を許可する</label>
       </form>
       <div class="examples"><span>TRY</span><button>iPhoneの新機能への反応</button><button>生成AIによる仕事への影響</button><button>最近の電気自動車の評判</button></div>
+    </section>
+
+    <section id="history" class="history-shell hidden">
+      <div class="history-head"><div><p class="eyebrow">RESEARCH HISTORY</p><h2>過去の調査</h2></div><button id="clear-history" type="button">履歴を消去</button></div>
+      <div id="history-list" class="history-list"></div>
     </section>
 
     <section id="workspace" class="workspace hidden" aria-live="polite">

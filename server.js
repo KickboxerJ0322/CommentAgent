@@ -35,6 +35,31 @@ app.post("/api/research", async (req, res) => {
   }
 });
 
+app.post("/api/research/stream", async (req, res) => {
+  const topic = String(req.body?.topic || "").trim();
+  if (topic.length < 2 || topic.length > 200) {
+    return res.status(400).json({ error: "調査テーマは2〜200文字で入力してください。" });
+  }
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.flushHeaders();
+  const send = payload => res.write(`${JSON.stringify(payload)}\n`);
+  try {
+    const result = await createResearchAgent().research(topic, {
+      maxVideos: Math.min(Math.max(Number(req.body?.maxVideos || process.env.MAX_VIDEOS || 6), 1), 10),
+      maxCommentsPerVideo: Math.min(Math.max(Number(process.env.MAX_COMMENTS_PER_VIDEO || 100), 10), 200),
+      maxRounds: req.body?.allowAdditionalResearch === false ? 1 : Math.min(Math.max(Number(process.env.MAX_AGENT_ROUNDS || 2), 1), 3),
+      onEvent: item => send({ type: "activity", item })
+    });
+    send({ type: "result", data: result });
+  } catch (error) {
+    console.error(error);
+    send({ type: "error", error: error.publicMessage || "調査中にエラーが発生しました。時間をおいて再試行してください。" });
+  } finally {
+    res.end();
+  }
+});
+
 app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 app.listen(port, "0.0.0.0", () => console.log(`CommentAgent listening on ${port}`));
-
