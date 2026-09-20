@@ -6,3 +6,4 @@
 .brand-title{font-family:"M PLUS Rounded 1c","Noto Sans JP",sans-serif;font-size:1.08em;font-weight:800;letter-spacing:-.045em;text-shadow:0 1px 0 #fff}
 main{padding-top:20px}.searchbox{margin-top:0}
 @media(max-width:760px){main{padding-top:12px}}
+.condition-bar .check{grid-column:1/-1;display:flex;align-items:center;gap:7px;margin:3px 4px 0;font-size:12px}.condition-bar .check input{width:18px;height:18px;flex:0 0 18px;padding:0}
