@@ -20,12 +20,15 @@ export function createResearchAgent({ youtube = new YouTubeClient(), analyst = n
       record("goal", "調査を開始", topic);
       record("thinking", "調査計画を検討中", videoUrl ? "指定された動画と調査範囲を確認しています" : "検索語と調査範囲を組み立てています");
       const plan = await analyst.plan(topic);
-      record("plan", "調査計画を作成", `${plan.queries.length}個の検索語を生成`);
-      decisions.push({ stage: "計画", decision: "検索語を生成", reason: plan.goal || topic, detail: plan.queries.join(" / ") });
+      const initialQuery = plan.queries?.find(Boolean) || topic;
+      plan.queries = [initialQuery];
+      record("plan", "調査計画を作成", "1個の検索語を生成");
+      decisions.push({ stage: "計画", decision: "検索語を生成", reason: plan.goal || topic, detail: initialQuery });
 
       const videosById = new Map();
       const allComments = [];
-      let queries = plan.queries?.filter(Boolean).slice(0, 3) || [topic];
+      let queries = [initialQuery];
+      let searchQueries = 0;
       let analysis;
 
       if (videoUrl) {
@@ -52,6 +55,7 @@ export function createResearchAgent({ youtube = new YouTubeClient(), analyst = n
       for (let round = 1; round <= maxRounds; round++) {
         record("search", videoUrl ? "指定動画を確認" : `検索 Round ${round}`, videoUrl || queries.join(" / "));
         for (const query of queries) {
+          searchQueries++;
           const found = await youtube.searchVideos(query, maxVideos, { publishedAfter });
           found.forEach(video => videosById.set(video.id, video));
         }
@@ -121,7 +125,7 @@ export function createResearchAgent({ youtube = new YouTubeClient(), analyst = n
           decisions,
           limits: { maxRounds, maxVideos, maxCommentsPerVideo },
           usage: {
-            searchQueries: activity.filter(item => item.type === "search").length,
+            searchQueries,
             analyzedVideos: videosById.size,
             analyzedComments: allComments.length,
             geminiCalls: 1 + activity.filter(item => item.type === "analyzing").length
