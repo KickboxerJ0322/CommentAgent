@@ -55,7 +55,7 @@ test("agent emits progress and builds report chart data", async () => {
   const publishedAt = new Date().toISOString();
   const youtube = {
     async searchVideos() { return [{ id:"v1", title:"Video", channel:"test", url:"https://example.com", thumbnail:"" }]; },
-    async getComments() { return [{ text:"原文コメント", likes:42, publishedAt }]; }
+    async getComments() { return [{ id:"comment-1", text:"原文コメント", likes:42, publishedAt, url:"https://youtube.com/watch?v=v1&lc=comment-1" }]; }
   };
   const analyst = {
     async plan() { return { queries:["query"], selectionPolicy:"relevance" }; },
@@ -66,6 +66,24 @@ test("agent emits progress and builds report chart data", async () => {
   assert.ok(progress.some(item => item.type === "analyzing"));
   assert.equal(result.topComments[0].text, "原文コメント");
   assert.equal(result.topComments[0].likes, 42);
+  assert.equal(result.topComments[0].evidenceId, "C001");
+  assert.equal(result.evidence.C001.text, "原文コメント");
+  assert.ok(result.inspector.runId.startsWith("run-"));
+  assert.equal(result.inspector.usage.analyzedComments, 1);
+  assert.ok(result.inspector.decisions.some(item => item.decision === "調査終了"));
   assert.equal(result.charts.dailyComments.reduce((sum, item) => sum + item.count, 0), 1);
   assert.equal(result.charts.videoComments[0].count, 1);
+});
+
+test("agent keeps only valid evidence ids returned by the analyst", async () => {
+  const youtube = {
+    async searchVideos() { return [{ id:"v1", title:"Video", channel:"test", url:"https://youtube.com/watch?v=v1", thumbnail:"" }]; },
+    async getComments() { return [{ id:"c1", text:"根拠コメント", likes:2, publishedAt:new Date().toISOString(), url:"https://youtube.com/watch?v=v1&lc=c1" }]; }
+  };
+  const analyst = {
+    async plan() { return { goal:"test", queries:["query"], selectionPolicy:"relevance" }; },
+    async analyze() { return { summary:"ok", sentiment:{positive:0,neutral:100,negative:0}, topics:[], findings:[{ claim:"結論", sentiment:"neutral", confidence:"high", evidenceIds:["C001","C999"] }], needsMoreResearch:false }; }
+  };
+  const result = await createResearchAgent({ youtube, analyst }).research("test", { maxRounds:1 });
+  assert.deepEqual(result.analysis.findings[0].evidenceIds, ["C001"]);
 });

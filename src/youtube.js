@@ -86,7 +86,15 @@ export class YouTubeClient {
         for (const item of data.items || []) {
           const c = item.snippet.topLevelComment.snippet;
           if (!publishedAfter || c.publishedAt >= publishedAfter) {
-            comments.push({ text: c.textDisplay, likes: c.likeCount || 0, publishedAt: c.publishedAt, author: c.authorDisplayName || "" });
+            const commentId = item.snippet.topLevelComment.id;
+            comments.push({
+              id: commentId,
+              text: c.textDisplay,
+              likes: c.likeCount || 0,
+              publishedAt: c.publishedAt,
+              author: c.authorDisplayName || "",
+              url: `https://www.youtube.com/watch?v=${videoId}&lc=${commentId}`
+            });
           }
         }
         pageToken = data.nextPageToken;
