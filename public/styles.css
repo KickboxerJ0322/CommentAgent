@@ -4,3 +4,5 @@
 .conditions-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:12px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;color:#555d75;font-size:12px;font-weight:700}.conditions-toggle i{font-style:normal;font-size:18px;color:var(--blue)}.overview-copy{margin-top:42px}
 @media(max-width:760px){header{gap:5px}.brand{font-size:14px}.logo{width:30px;height:30px;margin-right:7px;border-radius:9px}.top-nav{gap:2px}.top-nav button{padding:7px 5px;font-size:9px}}
 .brand-title{font-family:"M PLUS Rounded 1c","Noto Sans JP",sans-serif;font-size:1.08em;font-weight:800;letter-spacing:-.045em;text-shadow:0 1px 0 #fff}
+main{padding-top:20px}.searchbox{margin-top:0}
+@media(max-width:760px){main{padding-top:12px}}
