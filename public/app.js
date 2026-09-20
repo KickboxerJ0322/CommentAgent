@@ -50,24 +50,50 @@ $("#history-list").addEventListener("click", async event => {
   } catch (error) { alert(error.message); card.disabled = false; }
 });
 
+let trendingData = null;
+let trendingCategory = "politics_economy";
+
+function renderTrendingCategory(categoryId = trendingCategory) {
+  if (!trendingData) return;
+  const category = trendingData.categories.find(item => item.id === categoryId) || trendingData.categories[0];
+  if (!category) return;
+  trendingCategory = category.id;
+  $("#trending-tabs").querySelectorAll("button").forEach(button => {
+    const active = button.dataset.category === category.id;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  $("#trending-list").innerHTML = category.topComments.length
+    ? `<div class="trending-category-head"><div><b>${escapeHtml(category.label)}</b><span>${escapeHtml(category.description || "")}</span></div><small>${category.sampledVideos || 0}本の動画から集計</small></div>` +
+      category.topComments.map((comment, index) => `<article class="ranking-card"><b class="rank">${index + 1}</b><div><p>${escapeHtml(comment.text)}</p><footer>👍 ${comment.likes || 0} · <a href="${escapeHtml(comment.videoUrl)}" target="_blank" rel="noopener">${escapeHtml(comment.videoTitle)}</a></footer></div></article>`).join("")
+    : "<p>表示できるコメントはありません。</p>";
+}
+
 async function loadTrending(forceRefresh = false) {
   const refreshButton = $("#trending-refresh");
   refreshButton.disabled = true;
   refreshButton.textContent = forceRefresh ? "更新中..." : "読み込み中...";
-  if (!forceRefresh) $("#trending-list").innerHTML = "<p>人気動画のコメントを集計中...</p>";
+  if (!forceRefresh) $("#trending-list").innerHTML = "<p>5分野のコメントを集計中...</p>";
   try {
     const response = await fetch(forceRefresh ? "/api/trending?refresh=1" : "/api/trending", { cache:"no-store" });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
+    trendingData = data;
     $("#trending-updated").textContent = `最終更新：${new Date(data.generatedAt).toLocaleString("ja-JP")}`;
-    $("#trending-list").innerHTML = data.topComments.length ? data.topComments.map((comment, index) => `<article class="ranking-card"><b class="rank">${index + 1}</b><div><p>${escapeHtml(comment.text)}</p><footer>👍 ${comment.likes || 0} · <a href="${escapeHtml(comment.videoUrl)}" target="_blank" rel="noopener">${escapeHtml(comment.videoTitle)}</a></footer></div></article>`).join("") : "<p>表示できるコメントはありません。</p>";
+    $("#trending-tabs").innerHTML = data.categories.map(category => `<button type="button" role="tab" data-category="${escapeHtml(category.id)}">${escapeHtml(category.label)}</button>`).join("");
+    renderTrendingCategory(trendingCategory);
   } catch (error) {
+    $("#trending-tabs").innerHTML = "";
     $("#trending-list").innerHTML = `<div class="error">${escapeHtml(error.message || "取得できませんでした。")}</div>`;
   } finally {
     refreshButton.disabled = false;
     refreshButton.textContent = "最新情報に更新";
   }
 }
+$("#trending-tabs").addEventListener("click", event => {
+  const button = event.target.closest("[data-category]");
+  if (button) renderTrendingCategory(button.dataset.category);
+});
 $("#trending-refresh").addEventListener("click", () => loadTrending(true));
 
 $("#result").addEventListener("submit", event => { if (!event.target.matches("#deepen-form")) return; event.preventDefault(); const detail = new FormData(event.target).get("detail")?.trim(); if (detail) runResearch(`${event.target.dataset.topic}：${detail}`); });

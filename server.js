@@ -78,6 +78,14 @@ app.get("/api/history/:id", async (req, res) => {
   res.json(result);
 });
 
+const TRENDING_CATEGORIES = [
+  { id: "politics_economy", label: "政治経済", query: "政治 経済 ニュース", description: "政治・政策・経済・金融に関する話題" },
+  { id: "it", label: "IT", query: "IT テクノロジー AI デジタル", description: "AI・テクノロジー・デジタルに関する話題" },
+  { id: "entertainment", label: "エンタメ", query: "エンタメ 芸能 映画 音楽", description: "芸能・映画・音楽などの話題" },
+  { id: "sports", label: "スポーツ", query: "スポーツ 試合 選手", description: "スポーツ・試合・選手に関する話題" },
+  { id: "life", label: "ライフ", query: "生活 健康 グルメ 暮らし", description: "生活・健康・食・暮らしに関する話題" }
+];
+
 let trendingCache;
 app.get("/api/trending", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -85,17 +93,32 @@ app.get("/api/trending", async (req, res) => {
   if (!forceRefresh && trendingCache?.expiresAt > Date.now()) return res.json(trendingCache.data);
   try {
     const youtube = new YouTubeClient();
-    const videos = await youtube.getPopularVideos(12, "JP");
-    const commentGroups = await Promise.all(videos.map(async video => {
-      const comments = await youtube.getComments(video.id, 30);
-      return comments.map(comment => ({ ...comment, videoId: video.id, videoTitle: video.title, videoUrl: video.url }));
+    const publishedAfter = new Date(Date.now() - 7 * 86400000).toISOString();
+    const categories = await Promise.all(TRENDING_CATEGORIES.map(async category => {
+      const videos = await youtube.searchVideos(category.query, 4, { publishedAfter });
+      const commentGroups = await Promise.all(videos.map(async video => {
+        const comments = await youtube.getComments(video.id, 20, { publishedAfter });
+        return comments.map(comment => ({ ...comment, videoId: video.id, videoTitle: video.title, videoUrl: video.url }));
+      }));
+      const topComments = commentGroups.flat()
+        .filter(comment => comment.text && comment.likes >= 0)
+        .sort((a, b) => b.likes - a.likes || String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")))
+        .slice(0, 5);
+      return {
+        id: category.id,
+        label: category.label,
+        description: category.description,
+        sampledVideos: videos.length,
+        topComments
+      };
     }));
-    const topComments = commentGroups.flat()
-      .filter(comment => comment.text && comment.likes >= 0)
-      .sort((a, b) => b.likes - a.likes || b.publishedAt.localeCompare(a.publishedAt))
-      .slice(0, 10);
-    const data = { topComments, sampledVideos: videos.length, generatedAt: new Date().toISOString() };
-    trendingCache = { data, expiresAt: Date.now() + 10 * 60 * 1000 };
+    const data = {
+      categories,
+      searchQueries: TRENDING_CATEGORIES.length,
+      periodDays: 7,
+      generatedAt: new Date().toISOString()
+    };
+    trendingCache = { data, expiresAt: Date.now() + 30 * 60 * 1000 };
     res.json(data);
   } catch (error) {
     console.error(error);
