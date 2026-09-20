@@ -81,9 +81,9 @@ app.get("/api/history/:id", async (req, res) => {
 const TRENDING_CATEGORIES = [
   { id: "politics_economy", label: "政治経済", query: "政治 経済 ニュース", description: "政治・政策・経済・金融に関する話題" },
   { id: "it", label: "IT", query: "IT テクノロジー AI デジタル", description: "AI・テクノロジー・デジタルに関する話題" },
-  { id: "entertainment", label: "エンタメ", query: "エンタメ 芸能 映画 音楽", description: "芸能・映画・音楽などの話題" },
   { id: "sports", label: "スポーツ", query: "スポーツ 試合 選手", description: "スポーツ・試合・選手に関する話題" },
-  { id: "life", label: "ライフ", query: "生活 健康 グルメ 暮らし", description: "生活・健康・食・暮らしに関する話題" }
+  { id: "life", label: "ライフ", query: "生活 健康 グルメ 暮らし", description: "生活・健康・食・暮らしに関する話題" },
+  { id: "other", label: "その他", query: null, description: "ジャンルを指定しない日本の人気動画の話題" }
 ];
 
 let trendingCache;
@@ -95,9 +95,12 @@ app.get("/api/trending", async (req, res) => {
     const youtube = new YouTubeClient();
     const publishedAfter = new Date(Date.now() - 7 * 86400000).toISOString();
     const categories = await Promise.all(TRENDING_CATEGORIES.map(async category => {
-      const videos = await youtube.searchVideos(category.query, 4, { publishedAfter });
+      const isOther = category.id === "other";
+      const videos = isOther
+        ? await youtube.getPopularVideos(4, "JP")
+        : await youtube.searchVideos(category.query, 4, { publishedAfter });
       const commentGroups = await Promise.all(videos.map(async video => {
-        const comments = await youtube.getComments(video.id, 20, { publishedAfter });
+        const comments = await youtube.getComments(video.id, 20, isOther ? {} : { publishedAfter });
         return comments.map(comment => ({ ...comment, videoId: video.id, videoTitle: video.title, videoUrl: video.url }));
       }));
       const topComments = commentGroups.flat()
@@ -114,7 +117,7 @@ app.get("/api/trending", async (req, res) => {
     }));
     const data = {
       categories,
-      searchQueries: TRENDING_CATEGORIES.length,
+      searchQueries: TRENDING_CATEGORIES.filter(category => category.query).length,
       periodDays: 7,
       generatedAt: new Date().toISOString()
     };
