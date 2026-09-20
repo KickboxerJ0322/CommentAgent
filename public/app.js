@@ -50,14 +50,25 @@ $("#history-list").addEventListener("click", async event => {
   } catch (error) { alert(error.message); card.disabled = false; }
 });
 
-async function loadTrending() {
-  $("#trending-list").innerHTML = "<p>人気動画のコメントを集計中...</p>";
+async function loadTrending(forceRefresh = false) {
+  const refreshButton = $("#trending-refresh");
+  refreshButton.disabled = true;
+  refreshButton.textContent = forceRefresh ? "更新中..." : "読み込み中...";
+  if (!forceRefresh) $("#trending-list").innerHTML = "<p>人気動画のコメントを集計中...</p>";
   try {
-    const response = await fetch("/api/trending"); const data = await response.json();
+    const response = await fetch(forceRefresh ? "/api/trending?refresh=1" : "/api/trending", { cache:"no-store" });
+    const data = await response.json();
     if (!response.ok) throw new Error(data.error);
+    $("#trending-updated").textContent = `最終更新：${new Date(data.generatedAt).toLocaleString("ja-JP")}`;
     $("#trending-list").innerHTML = data.topComments.length ? data.topComments.map((comment, index) => `<article class="ranking-card"><b class="rank">${index + 1}</b><div><p>${escapeHtml(comment.text)}</p><footer>👍 ${comment.likes || 0} · <a href="${escapeHtml(comment.videoUrl)}" target="_blank" rel="noopener">${escapeHtml(comment.videoTitle)}</a></footer></div></article>`).join("") : "<p>表示できるコメントはありません。</p>";
-  } catch (error) { $("#trending-list").innerHTML = `<div class="error">${escapeHtml(error.message || "取得できませんでした。")}</div>`; }
+  } catch (error) {
+    $("#trending-list").innerHTML = `<div class="error">${escapeHtml(error.message || "取得できませんでした。")}</div>`;
+  } finally {
+    refreshButton.disabled = false;
+    refreshButton.textContent = "最新情報に更新";
+  }
 }
+$("#trending-refresh").addEventListener("click", () => loadTrending(true));
 
 $("#result").addEventListener("submit", event => { if (!event.target.matches("#deepen-form")) return; event.preventDefault(); const detail = new FormData(event.target).get("detail")?.trim(); if (detail) runResearch(`${event.target.dataset.topic}：${detail}`); });
 $("#research-form").addEventListener("submit", event => { event.preventDefault(); runResearch($("#topic").value.trim()); });

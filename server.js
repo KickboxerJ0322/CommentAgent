@@ -79,8 +79,10 @@ app.get("/api/history/:id", async (req, res) => {
 });
 
 let trendingCache;
-app.get("/api/trending", async (_req, res) => {
-  if (trendingCache?.expiresAt > Date.now()) return res.json(trendingCache.data);
+app.get("/api/trending", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const forceRefresh = req.query.refresh === "1";
+  if (!forceRefresh && trendingCache?.expiresAt > Date.now()) return res.json(trendingCache.data);
   try {
     const youtube = new YouTubeClient();
     const videos = await youtube.getPopularVideos(12, "JP");
