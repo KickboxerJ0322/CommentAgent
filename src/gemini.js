@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 const FALLBACK_PLAN = topic => ({
   goal: `${topic}についてYouTube視聴者の反応を調査する`,
-  queries: [topic],
+  queries: [topic, `${topic} 反応`],
   selectionPolicy: "関連性と動画の多様性を優先"
 });
 
@@ -28,7 +28,7 @@ export class GeminiAnalyst {
   }
 
   plan(topic) {
-    return this.json(`あなたはYouTube調査エージェントです。調査テーマ「${topic}」について、最も適切な日本語の検索語を1個だけ作成してください。queriesには必ず1件だけ入れてください。\nJSON形式: {"goal":"...","queries":["..."],"selectionPolicy":"..."}`, FALLBACK_PLAN(topic));
+    return this.json(`あなたはYouTube調査エージェントです。調査テーマ「${topic}」について、異なる切り口の日本語の検索語を2個作成してください。queriesには必ず2件だけ入れてください。\nJSON形式: {"goal":"...","queries":["...","..."],"selectionPolicy":"..."}`, FALLBACK_PLAN(topic));
   }
 
   analyze(topic, videos, comments) {

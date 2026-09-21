@@ -20,14 +20,16 @@ export function createResearchAgent({ youtube = new YouTubeClient(), analyst = n
       record("goal", "調査を開始", topic);
       record("thinking", "調査計画を検討中", videoUrl ? "指定された動画と調査範囲を確認しています" : "検索語と調査範囲を組み立てています");
       const plan = await analyst.plan(topic);
-      const initialQuery = plan.queries?.find(Boolean) || topic;
-      plan.queries = [initialQuery];
-      record("plan", "調査計画を作成", "1個の検索語を生成");
-      decisions.push({ stage: "計画", decision: "検索語を生成", reason: plan.goal || topic, detail: initialQuery });
+      const initialQueries = [...new Set((plan.queries || []).filter(Boolean))].slice(0, 2);
+      if (initialQueries.length < 2 && !initialQueries.includes(topic)) initialQueries.push(topic);
+      if (initialQueries.length < 2) initialQueries.push(`${topic} 反応`);
+      plan.queries = initialQueries.slice(0, 2);
+      record("plan", "調査計画を作成", `${plan.queries.length}個の検索語を生成`);
+      decisions.push({ stage: "計画", decision: "検索語を生成", reason: plan.goal || topic, detail: plan.queries.join(" / ") });
 
       const videosById = new Map();
       const allComments = [];
-      let queries = [initialQuery];
+      let queries = [...plan.queries];
       let searchQueries = 0;
       let analysis;
 

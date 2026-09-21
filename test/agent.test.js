@@ -29,7 +29,7 @@ test("agent researches a specified video directly", async () => {
   assert.equal(result.conditions.videoUrl, "https://youtu.be/dQw4w9WgXcQ");
 });
 
-test("agent uses one initial search plus one optional additional search", async () => {
+test("agent uses two initial searches plus one optional additional search", async () => {
   let analyses = 0;
   const searchedQueries = [];
   const youtube = {
@@ -40,17 +40,33 @@ test("agent uses one initial search plus one optional additional search", async 
     async getComments(id) { return [{ text: `${id} is useful`, likes: 1 }]; }
   };
   const analyst = {
-    async plan() { return { goal: "test", queries: ["first", "unused-2", "unused-3"], selectionPolicy: "diversity" }; },
-    async analyze() { analyses++; return { summary:"ok", sentiment:{positive:50,neutral:50,negative:0}, topics:[], needsMoreResearch: analyses === 1, nextQuery:"second" }; }
+    async plan() { return { goal: "test", queries: ["first", "second", "unused-3"], selectionPolicy: "diversity" }; },
+    async analyze() { analyses++; return { summary:"ok", sentiment:{positive:50,neutral:50,negative:0}, topics:[], needsMoreResearch: analyses === 1, nextQuery:"third" }; }
   };
   const result = await createResearchAgent({ youtube, analyst }).research("AI", { maxVideos: 2, maxRounds: 2 });
-  assert.deepEqual(searchedQueries, ["first", "second"]);
-  assert.deepEqual(result.plan.queries, ["first"]);
-  assert.equal(result.inspector.usage.searchQueries, 2);
+  assert.deepEqual(searchedQueries, ["first", "second", "third"]);
+  assert.deepEqual(result.plan.queries, ["first", "second"]);
+  assert.equal(result.inspector.usage.searchQueries, 3);
   assert.equal(result.stats.rounds, 2);
-  assert.equal(result.stats.videos, 2);
-  assert.equal(result.stats.comments, 2);
+  assert.equal(result.stats.videos, 3);
+  assert.equal(result.stats.comments, 3);
   assert.ok(result.activity.some(item => item.type === "replan"));
+});
+
+test("agent supplements the initial plan to two search queries", async () => {
+  const searchedQueries = [];
+  const youtube = {
+    async searchVideos(query) { searchedQueries.push(query); return []; },
+    async getComments() { return []; }
+  };
+  const analyst = {
+    async plan() { return { goal:"test", queries:["only-one"], selectionPolicy:"relevance" }; },
+    async analyze() { return { summary:"ok", sentiment:{positive:0,neutral:100,negative:0}, topics:[], findings:[], needsMoreResearch:false }; }
+  };
+  const result = await createResearchAgent({ youtube, analyst }).research("AI", { maxRounds:1 });
+  assert.deepEqual(searchedQueries, ["only-one", "AI"]);
+  assert.deepEqual(result.plan.queries, ["only-one", "AI"]);
+  assert.equal(result.inspector.usage.searchQueries, 2);
 });
 
 test("fallback sentiment percentages total 100", () => {
