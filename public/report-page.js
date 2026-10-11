@@ -1,3 +1,39 @@
+function safeMarkup(html) {
+  const parsed = new DOMParser().parseFromString(String(html), "text/html");
+  const allowed = new Set("A ARTICLE B BUTTON DD DETAILS DIV DL DT FOOTER FORM H2 H3 H4 I IMG INPUT P SMALL SPAN STRONG SUMMARY".split(" "));
+  const attributes = new Set("alt class data-category data-history-id data-topic href id maxlength name placeholder rel required role src target title type".split(" "));
+  function clean(node) {
+    if (node.nodeType === 3) return document.createTextNode(node.textContent);
+    if (node.nodeType !== 1 || !allowed.has(node.tagName)) return document.createDocumentFragment();
+    const el = document.createElement(node.tagName.toLowerCase());
+    for (const attr of node.attributes) {
+      const key = attr.name.toLowerCase();
+      if (key === "style") {
+        if (/^(width|height):\s*(100|\d{1,2})(\.\d+)?%;?$/.test(attr.value.trim())) el.setAttribute(key, attr.value);
+      } else if (attributes.has(key)) {
+        if (key === "href" || key === "src") {
+          try {
+            const url = new URL(attr.value, location.origin);
+            if (url.protocol !== "https:" && !(url.protocol === "http:" && url.origin === location.origin)) continue;
+          } catch { continue; }
+        }
+        if (key === "target" && attr.value !== "_blank") continue;
+        el.setAttribute(key, attr.value);
+      }
+    }
+    if (el.tagName === "A" && el.target === "_blank") el.rel = "noopener noreferrer";
+    if (el.tagName === "BUTTON" && el.classList.contains("report-output")) el.addEventListener("click", () => window.print());
+    for (const child of node.childNodes) el.appendChild(clean(child));
+    return el;
+  }
+  const fragment = document.createDocumentFragment();
+  for (const node of parsed.body.childNodes) fragment.appendChild(clean(node));
+  return fragment;
+}
+function renderMarkup(target, html) {
+  target.replaceChildren(safeMarkup(html));
+}
+
 const root = document.querySelector("#standalone-result");
 const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 const evidenceCard = (item={}) => { const link=item.url||item.videoUrl; return `<article class="evidence-card"><div><b>${escapeHtml(item.evidenceId||"")}</b><span>👍 ${item.likes||0}</span></div><p>${escapeHtml(item.text||"")}</p><footer>${escapeHtml(item.author||"")} · ${escapeHtml(item.videoTitle||"")}${link?`<a href="${escapeHtml(link)}" target="_blank" rel="noopener">YouTubeで確認 ↗</a>`:""}</footer></article>`; };
@@ -9,10 +45,10 @@ function render(data) {
   const a=data.analysis||{}, evidence=data.evidence||{}, labels={positive:"肯定",neutral:"中立",negative:"否定",high:"高",medium:"中",low:"低"};
   const findings=(a.findings||[]).map(f=>`<article class="finding"><div class="finding-head"><span class="tone ${escapeHtml(f.sentiment||"neutral")}">${labels[f.sentiment]||"中立"}</span><small>確度 ${labels[f.confidence]||"中"}</small></div><h4>${escapeHtml(f.claim)}</h4><div class="finding-evidence">${(f.evidenceIds||[]).map(id=>evidence[id]?evidenceCard(evidence[id]):"").join("")||"<p class=\"section-note\">対応する根拠コメントはありません。</p>"}</div></article>`).join("");
   root.className="";
-  root.innerHTML=`<div class="report-actions"><button class="report-output" onclick="window.print()">印刷・PDF保存</button></div><div class="report-head"><div><p class="eyebrow">RESEARCH REPORT</p><h2>${escapeHtml(data.topic)}</h2></div><span class="meta">${new Date(data.generatedAt).toLocaleString("ja-JP")}</span></div><div class="stats"><div class="stat"><b>${data.stats?.videos||0}</b><span>VIDEOS</span></div><div class="stat"><b>${data.stats?.comments||0}</b><span>COMMENTS</span></div><div class="stat"><b>${data.stats?.rounds||0}</b><span>ROUNDS</span></div></div><div class="charts-grid">${sentimentHtml(a.sentiment)}${dailyChartHtml(data.charts?.dailyComments)}${videoChartHtml(data.charts?.videoComments)}</div><p class="summary">${escapeHtml(a.summary)}</p><p class="report-caution">この結果は取得できたYouTube動画とコメントの分析であり、社会全体の意見を代表するものではありません。</p><h3>根拠付きの主な結論</h3><div class="findings">${findings||"<p>表示できる結論はありません。</p>"}</div><h3>主要な論点</h3><div class="topics">${(a.topics||[]).map(t=>`<div class="topic"><b>${escapeHtml(t.name)}</b><p>${escapeHtml(t.detail)}</p></div>`).join("")}</div><h3>注目を集めているコメント</h3><div class="top-comments">${(data.topComments||[]).map(evidenceCard).join("")||"<p>表示できるコメントはありません。</p>"}</div><h3>調査した動画</h3><div class="videos">${(data.videos||[]).map(v=>`<a class="video" href="${escapeHtml(v.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(v.thumbnail)}" alt=""><div><b>${escapeHtml(v.title)}</b><span>${escapeHtml(v.channel)} · ${v.commentCount||0} comments</span></div></a>`).join("")}</div>`;
+  renderMarkup(root, `<div class="report-actions"><button class="report-output" onclick="window.print()">印刷・PDF保存</button></div><div class="report-head"><div><p class="eyebrow">RESEARCH REPORT</p><h2>${escapeHtml(data.topic)}</h2></div><span class="meta">${new Date(data.generatedAt).toLocaleString("ja-JP")}</span></div><div class="stats"><div class="stat"><b>${data.stats?.videos||0}</b><span>VIDEOS</span></div><div class="stat"><b>${data.stats?.comments||0}</b><span>COMMENTS</span></div><div class="stat"><b>${data.stats?.rounds||0}</b><span>ROUNDS</span></div></div><div class="charts-grid">${sentimentHtml(a.sentiment)}${dailyChartHtml(data.charts?.dailyComments)}${videoChartHtml(data.charts?.videoComments)}</div><p class="summary">${escapeHtml(a.summary)}</p><p class="report-caution">この結果は取得できたYouTube動画とコメントの分析であり、社会全体の意見を代表するものではありません。</p><h3>根拠付きの主な結論</h3><div class="findings">${findings||"<p>表示できる結論はありません。</p>"}</div><h3>主要な論点</h3><div class="topics">${(a.topics||[]).map(t=>`<div class="topic"><b>${escapeHtml(t.name)}</b><p>${escapeHtml(t.detail)}</p></div>`).join("")}</div><h3>注目を集めているコメント</h3><div class="top-comments">${(data.topComments||[]).map(evidenceCard).join("")||"<p>表示できるコメントはありません。</p>"}</div><h3>調査した動画</h3><div class="videos">${(data.videos||[]).map(v=>`<a class="video" href="${escapeHtml(v.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(v.thumbnail)}" alt=""><div><b>${escapeHtml(v.title)}</b><span>${escapeHtml(v.channel)} · ${v.commentCount||0} comments</span></div></a>`).join("")}</div>`);
   document.title=`${data.topic} — 調査レポート`;
 }
 
 const id=new URLSearchParams(location.search).get("id");
-if (!id) root.innerHTML='<div class="error">レポートIDが指定されていません。</div>';
-else fetch(`/api/history/${encodeURIComponent(id)}`).then(async response=>{ const data=await response.json(); if(!response.ok) throw new Error(data.error); render(data); }).catch(error=>{ root.innerHTML=`<div class="error"><b>レポートを表示できませんでした</b><p>${escapeHtml(error.message)}</p></div>`; });
+if (!id) renderMarkup(root, '<div class="error">レポートIDが指定されていません。</div>');
+else fetch(`/api/history/${encodeURIComponent(id)}`).then(async response=>{ const data=await response.json(); if(!response.ok) throw new Error(data.error); render(data); }).catch(error=>{ renderMarkup(root, `<div class="error"><b>レポートを表示できませんでした</b><p>${escapeHtml(error.message)}</p></div>`); });
