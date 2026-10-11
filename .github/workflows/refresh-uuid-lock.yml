@@ -1,0 +1,38 @@
+name: Refresh uuid dependency lockfile
+on:
+  push:
+    branches:
+      - security/uuid-override-20261011
+    paths:
+      - '.github/workflows/refresh-uuid-lock.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/uuid-override-20261011
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Resolve patched transitive dependency
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit
+          npm ci --ignore-scripts
+          npm ls uuid
+          node -e "const l=require('./package-lock.json');for(const [p,v] of Object.entries(l.packages)){if(p.endsWith('/uuid')&&Number(v.version.split('.')[0])<11)process.exit(1)}"
+          npm test
+      - name: Commit refreshed lockfile
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "security: refresh lockfile for patched uuid"
+            git push
+          fi
