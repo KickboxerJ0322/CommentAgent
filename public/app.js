@@ -1,3 +1,39 @@
+function safeMarkup(html) {
+  const parsed = new DOMParser().parseFromString(String(html), "text/html");
+  const allowed = new Set("A ARTICLE B BUTTON DD DETAILS DIV DL DT FOOTER FORM H2 H3 H4 I IMG INPUT P SMALL SPAN STRONG SUMMARY".split(" "));
+  const attributes = new Set("alt class data-category data-history-id data-topic href id maxlength name placeholder rel required role src target title type".split(" "));
+  function clean(node) {
+    if (node.nodeType === 3) return document.createTextNode(node.textContent);
+    if (node.nodeType !== 1 || !allowed.has(node.tagName)) return document.createDocumentFragment();
+    const el = document.createElement(node.tagName.toLowerCase());
+    for (const attr of node.attributes) {
+      const key = attr.name.toLowerCase();
+      if (key === "style") {
+        if (/^(width|height):\s*(100|\d{1,2})(\.\d+)?%;?$/.test(attr.value.trim())) el.setAttribute(key, attr.value);
+      } else if (attributes.has(key)) {
+        if (key === "href" || key === "src") {
+          try {
+            const url = new URL(attr.value, location.origin);
+            if (url.protocol !== "https:" && !(url.protocol === "http:" && url.origin === location.origin)) continue;
+          } catch { continue; }
+        }
+        if (key === "target" && attr.value !== "_blank") continue;
+        el.setAttribute(key, attr.value);
+      }
+    }
+    if (el.tagName === "A" && el.target === "_blank") el.rel = "noopener noreferrer";
+    if (el.tagName === "BUTTON" && el.classList.contains("report-output")) el.addEventListener("click", () => window.print());
+    for (const child of node.childNodes) el.appendChild(clean(child));
+    return el;
+  }
+  const fragment = document.createDocumentFragment();
+  for (const node of parsed.body.childNodes) fragment.appendChild(clean(node));
+  return fragment;
+}
+function renderMarkup(target, html) {
+  target.replaceChildren(safeMarkup(html));
+}
+
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 let activity = [];
@@ -31,13 +67,13 @@ document.querySelectorAll(".dialog-close").forEach(button => button.addEventList
 document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); }));
 
 async function loadHistory() {
-  $("#history-list").innerHTML = "<p>読み込み中...</p>";
+  renderMarkup($("#history-list"), "<p>読み込み中...</p>");
   try {
     const response = await fetch("/api/history?limit=100");
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
-    $("#history-list").innerHTML = data.items.length ? data.items.map(item => `<button class="history-card" data-history-id="${escapeHtml(item.id)}"><span>${escapeHtml(item.topic)}</span><small>${new Date(item.generatedAt).toLocaleString("ja-JP")} · ${item.stats?.comments || 0}件</small><p>${escapeHtml(item.summary)}</p></button>`).join("") : "<p>保存された調査はまだありません。</p>";
-  } catch (error) { $("#history-list").innerHTML = `<div class="error">${escapeHtml(error.message || "履歴を取得できませんでした。")}</div>`; }
+    renderMarkup($("#history-list"), data.items.length ? data.items.map(item => `<button class="history-card" data-history-id="${escapeHtml(item.id)}"><span>${escapeHtml(item.topic)}</span><small>${new Date(item.generatedAt).toLocaleString("ja-JP")} · ${item.stats?.comments || 0}件</small><p>${escapeHtml(item.summary)}</p></button>`).join("") : "<p>保存された調査はまだありません。</p>");
+  } catch (error) { renderMarkup($("#history-list"), `<div class="error">${escapeHtml(error.message || "履歴を取得できませんでした。")}</div>`); }
 }
 
 $("#history-list").addEventListener("click", async event => {
@@ -63,28 +99,28 @@ function renderTrendingCategory(categoryId = trendingCategory) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
   });
-  $("#trending-list").innerHTML = category.topComments.length
+  renderMarkup($("#trending-list"), category.topComments.length
     ? `<div class="trending-category-head"><div><b>${escapeHtml(category.label)}</b><span>${escapeHtml(category.description || "")}</span></div><small>${category.sampledVideos || 0}本の動画から集計</small></div>` +
       category.topComments.map((comment, index) => `<article class="ranking-card"><b class="rank">${index + 1}</b><div><p>${escapeHtml(comment.text)}</p><footer>👍 ${comment.likes || 0} · <a href="${escapeHtml(comment.videoUrl)}" target="_blank" rel="noopener">${escapeHtml(comment.videoTitle)}</a></footer></div></article>`).join("")
-    : "<p>表示できるコメントはありません。</p>";
+    : "<p>表示できるコメントはありません。</p>");
 }
 
 async function loadTrending(forceRefresh = false) {
   const refreshButton = $("#trending-refresh");
   refreshButton.disabled = true;
   refreshButton.textContent = forceRefresh ? "更新中..." : "読み込み中...";
-  if (!forceRefresh) $("#trending-list").innerHTML = "<p>5分野のコメントを集計中...</p>";
+  if (!forceRefresh) renderMarkup($("#trending-list"), "<p>5分野のコメントを集計中...</p>");
   try {
     const response = await fetch(forceRefresh ? "/api/trending?refresh=1" : "/api/trending", { cache:"no-store" });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
     trendingData = data;
     $("#trending-updated").textContent = `最終更新：${new Date(data.generatedAt).toLocaleString("ja-JP")}`;
-    $("#trending-tabs").innerHTML = data.categories.map(category => `<button type="button" role="tab" data-category="${escapeHtml(category.id)}">${escapeHtml(category.label)}</button>`).join("");
+    renderMarkup($("#trending-tabs"), data.categories.map(category => `<button type="button" role="tab" data-category="${escapeHtml(category.id)}">${escapeHtml(category.label)}</button>`).join(""));
     renderTrendingCategory(trendingCategory);
   } catch (error) {
-    $("#trending-tabs").innerHTML = "";
-    $("#trending-list").innerHTML = `<div class="error">${escapeHtml(error.message || "取得できませんでした。")}</div>`;
+    renderMarkup($("#trending-tabs"), "");
+    renderMarkup($("#trending-list"), `<div class="error">${escapeHtml(error.message || "取得できませんでした。")}</div>`);
   } finally {
     refreshButton.disabled = false;
     refreshButton.textContent = "最新情報に更新";
@@ -110,18 +146,18 @@ async function runResearch(topic) {
     const reader = response.body.getReader(), decoder = new TextDecoder(); let buffer = "";
     while (true) { const { value, done } = await reader.read(); buffer += decoder.decode(value || new Uint8Array(), { stream:!done }); const lines = buffer.split("\n"); buffer = lines.pop() || ""; for (const line of lines) if (line.trim()) handleStreamMessage(JSON.parse(line)); if (done) break; }
     if (buffer.trim()) handleStreamMessage(JSON.parse(buffer));
-  } catch (error) { $("#result").innerHTML = `<div class="error"><b>調査を完了できませんでした</b><p>${escapeHtml(error.message)}</p></div>`; }
+  } catch (error) { renderMarkup($("#result"), `<div class="error"><b>調査を完了できませんでした</b><p>${escapeHtml(error.message)}</p></div>`); }
   finally { $("#loading").classList.add("hidden"); $("#result").classList.remove("hidden"); }
 }
 
 function handleStreamMessage(message) {
   if (message.type === "activity") { if (!(message.item.type === "goal" && activity[0]?.type === "goal")) activity.push(message.item); renderActivity(); }
-  else if (message.type === "result") { activity = message.data.activity; inspector = message.data.inspector || null; renderActivity(); $("#result").innerHTML = reportHtml(message.data); toggleActivity(false); }
+  else if (message.type === "result") { activity = message.data.activity; inspector = message.data.inspector || null; renderActivity(); renderMarkup($("#result"), reportHtml(message.data)); toggleActivity(false); }
   else if (message.type === "error") throw new Error(message.error);
 }
 
-function renderActivity() { $("#activity-list").innerHTML = activityHtml(activity); $("#inspector-summary").innerHTML = inspectorHtml(inspector); $("#inspector-summary").classList.toggle("hidden", !inspector); $("#activity-list").lastElementChild?.scrollIntoView({ behavior:"smooth", block:"nearest" }); }
-function showResult(data) { $("#workspace").classList.remove("hidden"); $("#loading").classList.add("hidden"); $("#result").classList.remove("hidden"); activity = data.activity || []; inspector = data.inspector || null; renderActivity(); toggleActivity(false); $("#result").innerHTML = reportHtml(data); $("#workspace").scrollIntoView({ behavior:"smooth", block:"start" }); }
+function renderActivity() { renderMarkup($("#activity-list"), activityHtml(activity)); renderMarkup($("#inspector-summary"), inspectorHtml(inspector)); $("#inspector-summary").classList.toggle("hidden", !inspector); $("#activity-list").lastElementChild?.scrollIntoView({ behavior:"smooth", block:"nearest" }); }
+function showResult(data) { $("#workspace").classList.remove("hidden"); $("#loading").classList.add("hidden"); $("#result").classList.remove("hidden"); activity = data.activity || []; inspector = data.inspector || null; renderActivity(); toggleActivity(false); renderMarkup($("#result"), reportHtml(data)); $("#workspace").scrollIntoView({ behavior:"smooth", block:"start" }); }
 function activityHtml(items) { const icons = { goal:"◎", thinking:"…", plan:"◇", search:"⌕", select:"✓", collecting:"↓", collect:"↓", analyzing:"◌", reflect:"◌", replan:"↻", complete:"✓" }; return items.map((item, index) => `<div class="activity-item ${index === items.length - 1 ? "active" : ""}"><div class="activity-icon">${icons[item.type] || "·"}</div><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></div></div>`).join(""); }
 function inspectorHtml(data) { if (!data) return ""; const duration=(Number(data.durationMs||0)/1000).toFixed(1); const decisions=(data.decisions||[]).map(item=>`<div class="decision"><small>${escapeHtml(item.stage)}</small><b>${escapeHtml(item.decision)}</b><p><span>理由</span>${escapeHtml(item.reason)}</p>${item.detail?`<p><span>内容</span>${escapeHtml(item.detail)}</p>`:""}</div>`).join(""); return `<div class="inspector-metrics"><div><b>${duration}s</b><span>処理時間</span></div><div><b>${data.usage?.searchQueries||0}</b><span>検索</span></div><div><b>${data.usage?.geminiCalls||0}</b><span>AI分析</span></div></div><details open><summary>判断と理由</summary>${decisions}</details><div class="stop-reason"><span>停止理由</span><b>${escapeHtml(data.stopReason||"")}</b></div><details><summary>実行情報</summary><dl><dt>Run ID</dt><dd>${escapeHtml(data.runId)}</dd><dt>上限</dt><dd>${data.limits?.maxRounds||0} rounds / ${data.limits?.maxVideos||0} videos / ${data.limits?.maxCommentsPerVideo||0} comments</dd></dl></details>`; }
 
